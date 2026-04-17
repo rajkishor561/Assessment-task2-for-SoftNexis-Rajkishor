@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow Lite | Animated Manager</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --danger: #ef4444;
+            --success: #10b981;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --card-bg: rgba(255, 255, 255, 0.98);
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-gradient); 
+            min-height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            margin: 0; padding: 20px;
+        }
+
+        /* --- Animations --- */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .container { 
+            width: 100%; max-width: 450px; 
+            background: var(--card-bg); 
+            padding: 2rem; border-radius: 24px; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: slideIn 0.5s ease-out;
+        }
+
+        header { text-align: center; margin-bottom: 2rem; }
+        header h1 { margin: 0; color: var(--primary); font-weight: 800; }
+
+        form { display: flex; gap: 10px; margin-bottom: 1.5rem; }
+        input[type="text"] { 
+            flex: 1; padding: 12px 16px; border: 2px solid #e2e8f0; 
+            border-radius: 12px; transition: all 0.3s;
+        }
+        input[type="text"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+
+        button#add-btn { 
+            background: var(--primary); color: white; border: none; 
+            padding: 12px 20px; border-radius: 12px; font-weight: 600;
+            cursor: pointer; transition: 0.3s;
+        }
+        button#add-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
+
+        /* Task Item Styling & Animation */
+        .task { 
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 1rem; margin-bottom: 10px; background: #fff;
+            border-radius: 14px; border: 1px solid #f1f5f9;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            animation: slideIn 0.3s ease-out forwards;
+            transition: all 0.2s;
+        }
+        .task:hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        
+        .task.completed { background: #f8fafc; opacity: 0.7; border-left: 5px solid var(--success); }
+        .task.completed span { text-decoration: line-through; color: #94a3b8; }
+
+        .delete-btn { 
+            background: #fee2e2; color: var(--danger); border: none; 
+            padding: 8px 12px; border-radius: 8px; cursor: pointer; transition: 0.2s;
+        }
+        .delete-btn:hover { background: var(--danger); color: white; }
+
+        .empty-state { text-align: center; color: #94a3b8; animation: fadeIn 1s; padding: 2rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>TaskFlow Lite</h1>
+        <p>Your client-side task management solution</p> [cite: 4]
+    </header>
+
+    <form id="task-form">
+        <input type="text" id="task-input" placeholder="New task..." aria-label="Task text">
+        <button type="submit" id="add-btn">Add</button>
+    </form>
+
+    <div id="stats" style="font-size: 0.85rem; color: #64748b; margin-bottom: 10px;"></div>
+    <ul id="task-list" style="list-style: none; padding: 0;"></ul>
+</div>
+
+<script>
+    // 1. Data Logic & Persistence [cite: 7, 23]
+    let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+
+    const save = () => {
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+        updateUI();
+    };
+
+    // 2. XSS Prevention [cite: 163-170]
+    function escapeHTML(str) {
+        return str.replace(/[&<>"']/g, tag => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[tag]));
+    }
+
+    // 3. UI Rendering [cite: 27, 86]
+    function updateUI() {
+        const list = document.getElementById('task-list');
+        const stats = document.getElementById('stats');
+        list.innerHTML = '';
+        
+        if (tasks.length === 0) {
+            list.innerHTML = '<div class="empty-state">No tasks yet. Start growing!</div>'; [cite: 35]
+            stats.innerText = '';
+            return;
+        }
+
+        tasks.forEach((task) => {
+            const li = document.createElement('li');
+            li.className = `task ${task.completed ? 'completed' : ''}`;
+            li.dataset.id = task.id; [cite: 98]
+            li.innerHTML = `
+                <label style="display:flex; align-items:center; gap:12px; cursor:pointer;">
+                    <input type="checkbox" ${task.completed ? 'checked' : ''} style="accent-color: var(--success)">
+                    <span>${escapeHTML(task.text)}</span>
+                </label>
+                <button class="delete-btn" aria-label="Delete task">Delete</button>
+            `;
+            list.appendChild(li);
+        });
+
+        const completedCount = tasks.filter(t => t.completed).length;
+        stats.innerText = `${completedCount} of ${tasks.length} tasks finished`; [cite: 65]
+    }
+
+    // 4. Event Handlers [cite: 29-32, 108]
+    document.getElementById('task-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const input = document.getElementById('task-input');
+        const val = input.value.trim();
+
+        if (val.length > 0 && val.length < 50) { [cite: 57, 59]
+            tasks.push({ id: Date.now(), text: val, completed: false }); [cite: 74-81]
+            save();
+            input.value = '';
+        } else {
+            input.style.borderColor = 'var(--danger)';
+            setTimeout(() => input.style.borderColor = '#e2e8f0', 1000);
+        }
+    });
+
+    // Event Delegation [cite: 31, 119]
+    document.getElementById('task-list').addEventListener('click', e => {
+        const li = e.target.closest('.task');
+        if (!li) return;
+        const id = Number(li.dataset.id);
+        const index = tasks.findIndex(t => t.id === id);
+
+        if (e.target.classList.contains('delete-btn')) {
+            li.style.transform = 'translateX(100px)';
+            li.style.opacity = '0';
+            setTimeout(() => {
+                tasks.splice(index, 1); [cite: 127]
+                save();
+            }, 200);
+        }
+
+        if (e.target.type === 'checkbox') {
+            tasks[index].completed = e.target.checked; [cite: 131]
+            save();
+        }
+    });
+
+    // Initialize [cite: 73]
+    updateUI();
+</script>
+</body>
+</html>
